@@ -1,0 +1,123 @@
+XX Down — User Manual
+================================
+
+[About]
+This app is built on the open-source project yt-dlp. It bundles yt-dlp and
+ffmpeg into a single GUI program. Double-click "XX Down.exe" to use it —
+no environment setup required. Version v1.5.
+
+[Features]
+1. Video quality: Best / 8K / 4K / 2K / 1080p / 720p / 480p / 360p / audio only
+2. Audio quality: Best / 320K / 256K / 192K / 128K / 64K
+3. Download folder: change the save location freely; the last choice is remembered
+4. Update yt-dlp: one click to check for and install updates
+5. Cookies: one-click "Grab Cookies" via a direct connection to a running browser (Chrome/Edge)
+6. WeChat Channels: download WeChat Channels share links, reusing the open-source engine wx_channels_download
+7. Douyin: no cookies, no browser needed. Paste any Douyin link (/video/, jingxuan?modal_id=, v.douyin.com short links, etc.) and click "Start Download" — the app resolves the video, lists all available qualities, and downloads the one selected in the main quality dropdown ("Best" = highest quality)
+8. Xinpianchang: paste an xinpianchang.com video link to download (4K requires logging into Xinpianchang in your browser first)
+9. Xiaohongshu / YouTube / Bilibili / X (Twitter) and more: resolved and downloaded by the yt-dlp engine
+10. System notifications: Windows notifications on download success/failure (shown as XX Down itself)
+
+[How to use]
+1. Paste the video link(s) into the "Video link" box (multiple links allowed, one per line)
+2. Choose video quality, audio quality, container format and download folder (all on the "Download settings" page)
+3. Tick "Download auto subtitles / convert to srt / download thumbnail" as needed
+4. Click "Start Download" — the log panel below shows progress in real time
+
+[WeChat Channels]
+This app has built-in WeChat Channels download support, reusing the open-source
+project ltaoo/wx_channels_download (the engine is auto-downloaded on first use).
+
+Steps:
+1. In the "WeChat Channels" panel, click "Install/Update engine" and wait for
+   the download to finish (first time only).
+2. Click "Start service". On first start it installs a root certificate and
+   takes over the system proxy; if a system authorization prompt (UAC) appears,
+   choose "Yes".
+3. Open WeChat for PC, go to "Channels", [double-click a channel to pop it out
+   into a separate window], then play any video in that separate window.
+   (Important: playing inside the main WeChat window cannot be intercepted —
+   it must be popped out into a separate window.)
+   A download button will then appear on the channel page (on both the home
+   feed and detail pages); you can also check the "Open channel panel".
+4. After step 3, paste the channel share link (https://weixin.qq.com/sph/xxxxxxxx)
+   into the "Video link" box and click "Start Download"; the channel service
+   downloads it in the background. Click "View channel tasks" to check progress.
+
+About the system proxy (important):
+- The channel service must take over the system proxy to intercept channel
+  pages (proxy address 127.0.0.1:2023).
+- Before starting the service, this app backs up your original proxy settings;
+  when you stop the service or exit the app, the proxy is restored exactly.
+- If the app crashes (e.g. force-killed) and leaves the proxy behind, breaking
+  browser internet access, the next launch detects and restores it automatically.
+- While the proxy is taken over, other network apps are routed through the
+  channel service; click "Stop service" when you are done.
+
+FAQ:
+- Since WeChat 4.1.x, channels are embedded in the main window by default; you
+  must double-click to pop them out into a separate window. Embedded playback
+  does not go through the proxy, so the engine sees no video ("video not
+  detected").
+- "Please start the service and open a channel page first": the engine has not
+  taken over a channel page yet. Repeat steps 2 and 3 and keep the service
+  running.
+- First download fails (singlefile timeout): usually a network hiccup; just
+  retry.
+- Channel files are saved to the folder set in "Download folder".
+
+[Getting Cookies (important)]
+Newer Chrome/Edge use "app-bound encryption" for cookies; third-party tools
+(including yt-dlp) cannot read them directly. The browser itself must export
+them. This app uses Chrome's official autoConnect feature to connect to a
+running browser:
+
+First time (once only, ~30 seconds):
+1. Open Chrome or Edge and log in to the target site (e.g. YouTube)
+2. In the address bar go to chrome://inspect/#remote-debugging (Edge:
+   edge://inspect/#remote-debugging) and press Enter
+3. Under "Remote debugging", enable "Allow remote debugging for this browser
+   instance" (autoConnect)
+4. Keep the browser running
+
+Every time afterwards:
+0. Shortcut: just click the "Grab Cookie" button on the "Download" page
+   (runs according to the current browser settings)
+1. In the app choose "From browser" -> select Chrome or Edge
+2. Click "Grab Cookie"
+3. If the browser asks "Allow remote debugging?", click Allow
+4. On success it is saved as cookies.txt and enabled automatically
+
+Manual method (fallback):
+1. Install the extension "Get cookies.txt LOCALLY" (search the Chrome/Edge
+   web store)
+2. Open and log in to the target site (e.g. YouTube)
+3. Click the extension icon -> Export -> save as cookies.txt
+4. In the app choose "Use cookies.txt file" -> "Browse..." and select it
+
+Notes:
+- Before using cookies.txt, make sure it is not empty and is in Netscape
+  format (first line: # Netscape HTTP Cookie File)
+- Firefox has no encryption restriction and can be read directly via
+  "From browser"
+- Older Chrome (below 146) does not support autoConnect; upgrade Chrome or
+  use the extension
+
+[Notes]
+- The cookies.txt bundled in this directory is used as the default cookie file
+- "Update yt-dlp" automatically replaces yt-dlp.exe in this directory
+- Accessing overseas sites such as YouTube requires your own network setup
+- App settings are auto-saved to ytdlp_gui_settings.json in this directory
+
+[Bundled files]
+- yt-dlp.exe     core download engine (auto-upgraded by "Update yt-dlp")
+- ffmpeg*.exe    audio/video muxing / conversion tools
+- python         built-in Python runtime (part of the program; do not delete)
+- deno.exe       used by sites that need a JS runtime (built in)
+- cookies.txt    cookie file (generated by "Grab Cookie"; not needed for Douyin)
+- dy_ttwid.json  Douyin access token cache (auto-generated; no action needed)
+- wxchannels_engine  WeChat Channels engine (auto-downloaded on first
+  "Install/Update engine")
+- ytdlp_gui.py   source code of this app
+- launcher.c     launcher source (XX Down.exe is compiled from it)
+- build/         packaging tools (build_exe.py + Inno Setup script)

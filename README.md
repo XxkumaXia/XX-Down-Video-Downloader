@@ -3,7 +3,10 @@
 基于开源项目 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 打造的 Windows 桌面视频下载器，
 双击即用，无需安装任何环境。
 
+[English README](README_EN.md)
+
 ![界面截图](docs/screenshot.png)
+![下载设置页](docs/screenshot_settings.png)
 
 ## 功能特性
 
@@ -39,9 +42,11 @@ XX Down.exe（C 启动器，MinGW 编译）
 XX-Down/
 ├── ytdlp_gui.py          主程序（PySide6 GUI + 下载调度）
 ├── launcher.c            C 启动器源码（构建时编译为 XX Down.exe）
-├── 使用说明.txt          用户手册
+├── 使用说明.txt          用户手册（中文）
+├── 使用说明_EN.txt       用户手册（英文）
 ├── docs/
-│   └── screenshot.png    界面截图
+│   ├── screenshot.png            界面截图
+│   └── screenshot_settings.png   下载设置页截图
 └── build/
     ├── build_exe.py      构建脚本（组装运行时 + 冒烟测试）
     ├── installer.iss     Inno Setup 6 安装包脚本
