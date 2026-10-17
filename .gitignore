@@ -1,0 +1,32 @@
+# 构建产物
+XX Down.exe
+python/
+.install/
+build/launcher.rc
+build/launcher.res
+
+# 安装包输出
+XX Down_安装包_*.exe
+
+# 第三方依赖（获取方式见 README）
+vendor/
+
+# 用户数据（切勿提交）
+cookies.txt
+dy_ttwid.json
+ytdlp_gui_settings.json
+yt-dlp.conf
+logs/
+wxchannels_engine/
+deno_update.zip
+
+# Python
+__pycache__/
+*.pyc
+
+# 备份与临时文件
+*.bak
+*.bak*
+*.prev
+*.old
+*.log
