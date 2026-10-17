@@ -21,6 +21,7 @@ from pathlib import Path
 
 
 APP_TITLE = "XX Down"
+REPO_URL = "https://github.com/XxkumaXia/XX-Down-Video-Downloader"
 FONT_UI = ("Microsoft YaHei UI", 10)
 FONT_SMALL = ("Microsoft YaHei UI", 9)
 FONT_LOG = ("Consolas", 9)
@@ -3729,6 +3730,12 @@ class App:
         sub.setAlignment(QtCore.Qt.AlignCenter)
         sub.setStyleSheet("color:%s;font-size:12px;" % MUTED)
         hero.add(sub)
+        repo = QtWidgets.QLabel('<a href="%s">%s</a>' % (REPO_URL, REPO_URL))
+        repo.setAlignment(QtCore.Qt.AlignCenter)
+        repo.setTextFormat(QtCore.Qt.RichText)
+        repo.setOpenExternalLinks(True)
+        repo.setStyleSheet("font-size:12px;a{color:%s;text-decoration:none;}" % ACCENT)
+        hero.add(repo)
 
         info = Card(radius=18, spacing=10)
         info.add(SectionTitle("说明", "info", "核心能力与注意事项"))
