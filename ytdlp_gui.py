@@ -83,6 +83,34 @@ def find_ytdlp() -> str:
     return shutil.which("yt-dlp") or "yt-dlp"
 
 
+# 会污染 Deno / Node 子进程的宿主机环境变量。
+# 例：用户全局 setx NODE_OPTIONS "--require some-preload.js" 后，
+# deno 在 Node 兼容模式下会执行该预加载脚本；yt-dlp 用
+# "deno run --no-prompt ..." 启动 EJS 解题器时没有 --allow-sys 权限，
+# 预加载脚本一访问 tls.rootCertificates 就 NotCapable 崩溃，
+# 导致 YouTube 的 n challenge 解不出来、只剩图片格式。
+_POLLUTING_CHILD_ENV = ("NODE_OPTIONS",)
+
+
+def child_env():
+    """给 yt-dlp / deno 子进程用的环境变量。
+
+    1. 去掉宿主机的 Node 预加载配置（见上）；
+    2. 把程序目录放到 PATH 最前，保证 yt-dlp 的 EJS 解题器找到的是
+       本程序自带的 deno.exe，而不是 PATH 里别的版本或干脆找不到。
+       yt-dlp 启动 deno 用的是 "deno" 这个名字，靠 PATH 解析。
+    """
+    env = os.environ.copy()
+    for name in _POLLUTING_CHILD_ENV:
+        env.pop(name, None)
+    tools = str(app_dir())
+    parts = [p for p in env.get("PATH", "").split(os.pathsep) if p]
+    if tools not in parts:
+        parts.insert(0, tools)
+        env["PATH"] = os.pathsep.join(parts)
+    return env
+
+
 
 class _PROCESSENTRY32W(ctypes.Structure):
     _fields_ = (
@@ -256,6 +284,12 @@ def build_download_args(urls, s: dict):
     ffdir = find_ffmpeg_dir()
     if ffdir:
         args += ["--ffmpeg-location", ffdir]
+    # YouTube 的 n challenge 需要 EJS 解题器脚本。官方可执行文件自带，
+    # 但从 PyPI 装的 yt-dlp（pip / winget 里不带资源的那种）只有 JS 运行时、
+    # 没有解题器发行版，必须显式允许它去 GitHub 拉取，否则只会剩图片格式。
+    # 加了对方官方可执行文件无副作用（yt-dlp --help 明确说明该选项对官方
+    # 可执行文件"currently not needed"）。
+    args += ["--remote-components", "ejs:github"]
     if s["container"] == "MP4":
         args += ["--merge-output-format", "mp4"]
     elif s["container"] == "MKV":
@@ -1273,6 +1307,7 @@ def get_latest_version(repo):
 def get_local_ytdlp_version():
     try:
         out = subprocess.run([find_ytdlp(), "--version"], capture_output=True, text=True, timeout=30,
+                             env=child_env(),
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
         return out.strip().splitlines()[0].strip() if out.strip() else None
     except Exception:
@@ -1285,6 +1320,7 @@ def get_local_deno_version():
         return None
     try:
         out = subprocess.run([str(exe), "--version"], capture_output=True, text=True, timeout=30,
+                             env=child_env(),
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
         m = re.search(r"deno\s+([\d.]+)", out)
         return m.group(1) if m else None
@@ -4928,6 +4964,7 @@ class App:
             if os.name == "nt":
                 flags = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "CREATE_NO_WINDOW", 0)
             proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    env=child_env(),
                                     text=True, encoding="utf-8", errors="replace", bufsize=1,
                                     creationflags=flags)
             for raw in iter(proc.stdout.readline, ""):
@@ -4983,7 +5020,7 @@ class App:
             if os.name == "nt":
                 flags = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "CREATE_NO_WINDOW", 0)
             self.proc = subprocess.Popen(
-                args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=child_env(),
                 text=True, encoding="utf-8", errors="replace", bufsize=1,
                 creationflags=flags)
             for raw in iter(self.proc.stdout.readline, ""):
