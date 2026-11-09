@@ -23,7 +23,7 @@ from pathlib import Path
 
 
 APP_TITLE = "XX Down"
-APP_VERSION = "1.6"  # 单一版本源：installer.iss / build_exe.py / CI 都从这里读
+APP_VERSION = "1.6.1"  # 单一版本源：installer.iss / build_exe.py / CI 都从这里读
 REPO_URL = "https://github.com/XxkumaXia/XX-Down-Video-Downloader"
 APP_REPO = "XxkumaXia/XX-Down-Video-Downloader"
 APP_ASSET = "XX-Down-v%s-setup-win-x64.exe"
