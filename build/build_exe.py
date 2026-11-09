@@ -30,6 +30,7 @@ from %TEMP%, which raises the suspicion score). Verified 2026-10-08:
 So we ship the official CPython embeddable runtime + plain source + a tiny C
 launcher instead of a PyInstaller bundle.
 """
+import re
 import hashlib
 import os
 import shutil
@@ -46,6 +47,8 @@ PYSIDE_SRC = VENDOR / "pyside"
 BASE_SP = VENDOR / "site-packages"
 BIN_DIR = VENDOR / "bin"
 OUT = ROOT
+APP_VERSION = re.search(r'APP_VERSION = "([^"]+)"', (ROOT / "ytdlp_gui.py").read_text(encoding="utf-8")).group(1)
+(BT / "installer.version.iss").write_text("#define MyAppVersion \"%s\"\n" % APP_VERSION, encoding="utf-8")
 
 # PySide6: only what the app imports (QtCore/QtGui/QtSvg/QtWidgets) plus the
 # Qt DLLs proven sufficient by PyInstaller's dependency analysis.
@@ -187,7 +190,7 @@ def main() -> int:
     stage.mkdir()
     shutil.copytree(pydir, stage / "python",
                     ignore=shutil.ignore_patterns("__pycache__"))
-    for name in ("XX Down.exe", "ytdlp_gui.py", "\u4f7f\u7528\u8bf4\u660e.txt"):
+    for name in ("XX Down.exe", "ytdlp_gui.py", "xxdown_cli.py", "\u4f7f\u7528\u8bf4\u660e.txt"):
         shutil.copy2(ROOT / name, stage / name)
     for name in ("yt-dlp.exe", "ffmpeg.exe", "ffprobe.exe", "deno.exe"):
         shutil.copy2(BIN_DIR / name, stage / name)

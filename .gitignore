@@ -18,6 +18,8 @@ ytdlp_gui_settings.json
 yt-dlp.conf
 logs/
 wxchannels_engine/
+xxdown_index.jsonl
+xxdown_archive.txt
 deno_update.zip
 
 # Python

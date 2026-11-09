@@ -10,9 +10,10 @@ Double-click and go — no environment setup required.
 
 ## Features
 
-- **Multi-platform**: Douyin (no login, multiple qualities), Xinpianchang, WeChat Channels, Xiaohongshu, YouTube, Bilibili, X (Twitter), and more
+- **Multi-platform**: Douyin (no login; one default stream when the API is down), Xinpianchang, WeChat Channels, Xiaohongshu, YouTube, Bilibili, X (Twitter), and more
 - **Quality selection**: Best / 8K / 4K / 2K / 1080p / 720p / 480p / 360p / audio only; audio quality 320K ~ 64K
 - **Subtitles & thumbnails**: automatic subtitle download (convertible to .srt), thumbnail download
+- **Full-app auto-update**: checks GitHub Releases, downloads the setup package and installs it silently (GitHub direct -> ghfast.top -> gh-proxy.com)
 - **One-click yt-dlp update**: always use the latest extraction capabilities
 - **One-click Cookies**: connects directly to a running Chrome/Edge (official autoConnect) to export login state
 - **WeChat Channels**: reuses the open-source engine [ltaoo/wx_channels_download](https://github.com/ltaoo/wx_channels_download), auto-downloaded on first use
@@ -33,7 +34,7 @@ XX Down.exe (C launcher, compiled with MinGW)
 - Why not PyInstaller: 360 AV's heuristic rule (Trojan/Python.ShellLoader.am)
   quarantines PyInstaller builds of this app; the combination of the official
   signed CPython runtime + a small C launcher does not trigger the false positive
-- Douyin: talks to Douyin's official web API directly (no login, no browser)
+- Douyin: tries the official web API first, then automatically falls back to browser interception when it returns 403 (signature checks); no login, but Chrome/Edge must run with Remote debugging on
 - Xinpianchang: opens the video page in a real browser, reads `__NEXT_DATA__`
   plus session cookies, then requests the CDN direct link (4K requires login)
 
@@ -43,6 +44,7 @@ XX Down.exe (C launcher, compiled with MinGW)
 XX-Down/
 ├── ytdlp_gui.py          main program (PySide6 GUI + download orchestration)
 ├── launcher.c            C launcher source (compiled to XX Down.exe at build time)
+├── xxdown_cli.py         agent CLI (same engines as the GUI, JSON output)
 ├── 使用说明.txt          user manual (Chinese)
 ├── 使用说明_EN.txt       user manual (English)
 ├── docs/
@@ -78,9 +80,33 @@ XX-Down/
 
 ```powershell
 python build\build_exe.py        # assembles XX Down.exe + python\ + .install\ (with smoke test)
+```
+
+## Release automation
+
+Change APP_VERSION in ytdlp_gui.py and push to main: GitHub Actions builds the Windows installer and creates the matching v<version> tag and Release automatically. The GUI full-app updater checks this same Release for updates.
+
+```powershell
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" build\installer.iss
 # output: XX Down_安装包_v1.5.exe
 ```
+
+## Agent CLI (xxdown_cli.py)
+
+A headless command-line entry point for local scripts and AI agents. It calls the same engine functions as the GUI, so it shares one yt-dlp.exe, one cookies.txt and one settings file with the interface: an agent never downloads yt-dlp again or exports cookies over and over. Links already downloaded return their local file path without touching the network. Bookkeeping has two layers, a local index xxdown_index.jsonl plus the yt-dlp archive xxdown_archive.txt. --force re-downloads. The build script ships the file inside the installer.
+
+```
+python\python.exe xxdown_cli.py tools                 # self-description: commands, exit codes, allowed values
+python\python.exe xxdown_cli.py doctor                # environment, versions, cookie state, problems
+python\python.exe xxdown_cli.py resolve <URL>         # inspect title and formats, no download
+python\python.exe xxdown_cli.py download <URL> [<URL>...] --quality 1080p
+python\python.exe xxdown_cli.py history --url <URL>   # was this link already downloaded?
+python\python.exe xxdown_cli.py cookies status|grab|validate
+python\python.exe xxdown_cli.py wx status|install|start|stop|tasks
+python\python.exe xxdown_cli.py update                # updates the local yt-dlp / deno
+```
+
+Contract: stdout is exactly one JSON document, progress and logs go to stderr (--quiet silences them), no dialogs and no GUI start-up. Exit codes: 0 success (including a dedup hit), 1 some link failed, 2 bad arguments, 3 missing environment, 130 interrupted. XX Down.exe still forwards its arguments to the GUI, so agents should call python\python.exe xxdown_cli.py directly.
 
 ## Third-party dependencies & credits
 

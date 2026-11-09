@@ -3,6 +3,7 @@
 
 import base64
 import ctypes
+import hashlib
 import json
 import os
 import re
@@ -15,13 +16,17 @@ import tempfile
 import threading
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
 
 
 APP_TITLE = "XX Down"
+APP_VERSION = "1.5"  # 单一版本源：installer.iss / build_exe.py / CI 都从这里读
 REPO_URL = "https://github.com/XxkumaXia/XX-Down-Video-Downloader"
+APP_REPO = "XxkumaXia/XX-Down-Video-Downloader"
+APP_ASSET = "XX-Down-v%s-setup-win-x64.exe"
 FONT_UI = ("Microsoft YaHei UI", 10)
 FONT_SMALL = ("Microsoft YaHei UI", 9)
 FONT_LOG = ("Consolas", 9)
@@ -1296,6 +1301,94 @@ def compare_versions(local, latest):
         return [int(x) for x in re.findall(r"\d+", v)][:4] or [0]
 
     return nums(latest) > nums(local)
+
+
+def fetch_release_asset():
+    """取最新 release 的安装包地址和 sha256；优先 GitHub API（拿 digest），失败时退回 releases/latest 的 302 重定向"""
+    api = "https://api.github.com/repos/%s/releases/latest" % APP_REPO
+    d = fetch_json(api, timeout=20)
+    if d:
+        latest = (d.get("tag_name") or "").lstrip("v")
+        asset_name = APP_ASSET % latest
+        for a in d.get("assets") or []:
+            if a.get("name") == asset_name:
+                digest = (a.get("digest") or "").replace("sha256:", "", 1).lower()
+                return {"url": a.get("browser_download_url"), "sha256": digest,
+                        "size": a.get("size", 0), "version": latest}, None
+    # GitHub API 限流时走 releases/latest 的 302 重定向
+    latest = get_release_version_fallback()
+    if not latest:
+        return None, "无法获取 GitHub Release 版本（请检查网络）"
+    url = "https://github.com/%s/releases/download/v%s/%s" % (APP_REPO, latest, APP_ASSET % latest)
+    return {"url": url, "sha256": "", "size": 0, "version": latest}, None
+
+
+def get_release_version_fallback():
+    """GitHub API 限流时，从 releases/latest 的 302 Location 读版本号"""
+    url = "https://github.com/%s/releases/latest" % APP_REPO
+    try:
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+        op = urllib.request.build_opener(_NoRedirect)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ytdlp-gui"})
+        with op.open(req, timeout=20) as r:
+            loc = r.headers.get("Location") or ""
+        m = re.search(r"/releases/tag/v([^/?#]+)", loc)
+        return m.group(1) if m else None
+    except urllib.error.HTTPError as e:
+        loc = (e.headers or {}).get("Location") or ""
+        m = re.search(r"/releases/tag/v([^/?#]+)", loc)
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
+
+def download_app_setup(asset, log=None):
+    """下载新版安装包到临时目录，并用 GitHub 返回的 sha256 校验"""
+    def out(msg):
+        if log:
+            try: log(msg)
+            except Exception: pass
+    dest = Path(tempfile.gettempdir()) / ("XX-Down-v%s-setup.exe" % asset["version"])
+    sha = asset.get("sha256") or ""
+    expected = asset.get("size") or 0
+    if dest.exists() and (not expected or dest.stat().st_size == expected):
+        out("安装包已存在，跳过下载")
+    else:
+        out("正在下载新版 XX Down %s ..." % asset["version"])
+        urls = [asset["url"], "https://ghfast.top/" + asset["url"], "https://gh-proxy.com/" + asset["url"]]
+        last_err = None
+        for url in urls:
+            try:
+                out("下载源：%s" % url.split("/")[2])
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 ytdlp-gui"})
+                with urllib.request.urlopen(req, timeout=600) as r, open(dest, "wb") as f:
+                    shutil.copyfileobj(r, f, 1024 * 1024)
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                out("下载失败（%s），换下一个源" % e)
+                dest.unlink(missing_ok=True)
+        if last_err is not None:
+            return False, "所有下载源均失败（最后错误：%s）" % last_err
+    if sha:
+        h = hashlib.sha256(dest.read_bytes()).hexdigest()
+        if h != sha:
+            dest.unlink(missing_ok=True)
+            return False, "安装包校验失败（sha256 不匹配）"
+    return True, str(dest)
+
+
+def run_app_updater(dest):
+    """静默安装（Inno Setup 支持 /VERYSILENT）"""
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    proc = subprocess.Popen([str(dest), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"],
+                            creationflags=flags, close_fds=True)
+    return proc.pid
+
+
 
 
 def download_deno(version, log=None):
@@ -4745,6 +4838,12 @@ class App:
 
     def _check_updates_bg(self):
         try:
+            app_asset, app_err = fetch_release_asset()
+            need_app = (not app_err and app_asset and
+                        compare_versions(APP_VERSION, app_asset["version"]))
+            if need_app:
+                self.root.after(0, self._mark_update_available)
+                self.append_log("🔔 检测到 XX Down 新版本：v%s → v%s（“检查更新”即可自动更新）" % (APP_VERSION, app_asset["version"]))
             yt_local = get_local_ytdlp_version()
             deno_local = get_local_deno_version()
             yt_latest = get_latest_version("yt-dlp/yt-dlp")
@@ -4769,6 +4868,9 @@ class App:
             self.set_busy(True)
             self.append_log("=" * 50)
             self.append_log("开始检查更新 ...")
+            app_asset, app_err = fetch_release_asset()
+            need_app = (not app_err and app_asset and
+                        compare_versions(APP_VERSION, app_asset["version"]))
             yt_local = get_local_ytdlp_version()
             deno_local = get_local_deno_version()
             yt_latest = get_latest_version("yt-dlp/yt-dlp")
@@ -4777,10 +4879,20 @@ class App:
             self.append_log("最新：yt-dlp %s / deno %s" % (yt_latest or "获取失败", deno_latest or "获取失败"))
             need_yt = compare_versions(yt_local, yt_latest)
             need_deno = compare_versions(deno_local, deno_latest)
-            if not need_yt and not need_deno:
-                self.append_log("✓ 所有组件均为最新版本")
+            if not need_yt and not need_deno and not need_app:
+                self.append_log("✓ 软件与组件均为最新版本")
                 self.root.after(0, self._mark_update_ok)
                 return
+            if need_app and app_asset:
+                self.append_log("正在更新 XX Down 本体 → v%s ..." % app_asset["version"])
+                ok, msg = download_app_setup(app_asset, log=self.append_log)
+                if not ok:
+                    self.append_log("✗ 软件更新失败：%s" % msg)
+                else:
+                    self.append_log("✓ 下载完成，正在启动静默安装器（程序会自动退出）")
+                    run_app_updater(msg)
+                    self.root.after(500, self._confirm_close_for_update)
+                    return
             if need_yt and yt_latest:
                 self.append_log("正在更新 yt-dlp → %s ..." % yt_latest)
                 rc = self._run_cmd_log([find_ytdlp(), "-U"])
@@ -4800,6 +4912,15 @@ class App:
             self.append_log("✗ 检查更新出错：%s" % e)
         finally:
             self.set_busy(False)
+
+    def _confirm_close_for_update(self):
+        try:
+            if not messagebox.askyesno("XX Down 更新", "安装程序已启动，需要关闭 XX Down 完成更新。" + chr(10) + chr(10) + "现在关闭吗？", self.root):
+                self.append_log("已暂缓关闭：安装器仍在后台运行，可稍后手动关闭本窗口完成更新")
+                return
+            self.on_close()
+        except Exception as e:
+            self.append_log("关闭程序时出错：%s（可手动关闭后完成安装）" % e)
 
     def _run_cmd_log(self, args):
         try:

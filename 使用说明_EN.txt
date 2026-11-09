@@ -7,22 +7,23 @@ ffmpeg into a single GUI program. Double-click "XX Down.exe" to use it —
 no environment setup required. Version v1.5.
 
 [Features]
-1. Video quality: Best / 8K / 4K / 2K / 1080p / 720p / 480p / 360p / audio only
-2. Audio quality: Best / 320K / 256K / 192K / 128K / 64K
-3. Download folder: change the save location freely; the last choice is remembered
-4. Update yt-dlp: one click to check for and install updates
-5. Cookies: one-click "Grab Cookies" via a direct connection to a running browser (Chrome/Edge)
-6. WeChat Channels: download WeChat Channels share links, reusing the open-source engine wx_channels_download
-7. Douyin: no cookies, no browser needed. Paste any Douyin link (/video/, jingxuan?modal_id=, v.douyin.com short links, etc.) and click "Start Download" — the app resolves the video, lists all available qualities, and downloads the one selected in the main quality dropdown ("Best" = highest quality)
-8. Xinpianchang: paste an xinpianchang.com video link to download (4K requires logging into Xinpianchang in your browser first)
-9. Xiaohongshu / YouTube / Bilibili / X (Twitter) and more: resolved and downloaded by the yt-dlp engine
-10. System notifications: Windows notifications on download success/failure (shown as XX Down itself)
+2. Video quality: Best / 8K / 4K / 2K / 1080p / 720p / 480p / 360p / audio only
+3. Audio quality: Best / 320K / 256K / 192K / 128K / 64K
+4. Download folder: change the save location freely; the last choice is remembered
+5. Full-app auto-update: Check Updates detects a GitHub Release, downloads the setup package and installs it silently (GitHub direct, then ghfast.top, then gh-proxy.com)
+6. Update yt-dlp: one click to check for and install updates
+7. Cookies: one-click "Grab Cookies" via a direct connection to a running browser (Chrome/Edge)
+8. WeChat Channels: download WeChat Channels share links, reusing the open-source engine wx_channels_download
+9. Douyin: no cookies, but Chrome/Edge must be running with Remote debugging enabled (the same autoConnect used by Grab Cookies). Paste any Douyin link and click "Start Download": the old no-browser API path is gone (Douyin added signature checks, HTTP 403), so the app automatically falls back to browser interception. You get the title and one default stream (no full quality list); the selected quality is ignored in that mode
+10. Xinpianchang: paste an xinpianchang.com video link to download (4K requires logging into Xinpianchang in your browser first)
+11. Xiaohongshu / YouTube / Bilibili / X (Twitter) and more: resolved and downloaded by the yt-dlp engine
+12. System notifications: Windows notifications on download success/failure (shown as XX Down itself)
 
 [How to use]
 1. Paste the video link(s) into the "Video link" box (multiple links allowed, one per line)
 2. Choose video quality, audio quality, container format and download folder (all on the "Download settings" page)
-3. Tick "Download auto subtitles / convert to srt / download thumbnail" as needed
-4. Click "Start Download" — the log panel below shows progress in real time
+2. Tick "Download auto subtitles / convert to srt / download thumbnail" as needed
+3. Click "Start Download" — the log panel below shows progress in real time
 
 [WeChat Channels]
 This app has built-in WeChat Channels download support, reusing the open-source
@@ -81,11 +82,11 @@ First time (once only, ~30 seconds):
 4. Keep the browser running
 
 Every time afterwards:
-0. Shortcut: just click the "Grab Cookie" button on the "Download" page
+1. Shortcut: just click the "Grab Cookie" button on the "Download" page
    (runs according to the current browser settings)
-1. In the app choose "From browser" -> select Chrome or Edge
-2. Click "Grab Cookie"
-3. If the browser asks "Allow remote debugging?", click Allow
+2. In the app choose "From browser" -> select Chrome or Edge
+3. Click "Grab Cookie"
+4. If the browser asks "Allow remote debugging?", click Allow
 4. On success it is saved as cookies.txt and enabled automatically
 
 Manual method (fallback):
@@ -93,7 +94,6 @@ Manual method (fallback):
    web store)
 2. Open and log in to the target site (e.g. YouTube)
 3. Click the extension icon -> Export -> save as cookies.txt
-4. In the app choose "Use cookies.txt file" -> "Browse..." and select it
 
 Notes:
 - Before using cookies.txt, make sure it is not empty and is in Netscape
@@ -102,6 +102,30 @@ Notes:
   "From browser"
 - Older Chrome (below 146) does not support autoConnect; upgrade Chrome or
   use the extension
+
+[Agent CLI (xxdown_cli.py)]
+A headless command-line entry point for local scripts and AI agents. It calls the same engine functions as the GUI and shares one yt-dlp.exe, one cookies.txt and one settings file, so an agent never downloads yt-dlp again or exports cookies over and over. Links already downloaded return their local file path without touching the network; bookkeeping lives in xxdown_index.jsonl (URL to file) plus xxdown_archive.txt (video IDs). Use --force to re-download, --no-archive to skip the records this time.
+Run from this directory:
+  python\python.exe xxdown_cli.py <command> [args]
+  e.g. python\python.exe xxdown_cli.py download "https://v.douyin.com/xxxx/" --quality 1080p
+
+Contract:
+1. stdout is exactly one JSON document; progress and logs go to stderr (--quiet silences them). No dialogs, no GUI start-up
+2. Exit codes: 0 success (including a dedup hit that returns a local path), 1 some link failed, 2 bad arguments, 3 missing environment, 130 interrupted
+3. The download folder, quality, container and cookie mode set in the interface apply by default; override them per call with --dir / --quality / --container / --template / --cookie-file / --no-cookies, or set any key with --opt KEY VALUE
+
+Commands:
+  tools                       print the command list and allowed values (for agent self-check)
+  doctor                      environment report: yt-dlp / deno / ffmpeg / engine versions, cookies.txt domains and expiry, Douyin ttwid cache, plus problems
+  resolve URL                 title, duration and available qualities only, no download
+  download URL [URL...]       download, auto-routing normal sites / Douyin / Xinpianchang / WeChat Channels
+  history --url URL           was this link already downloaded, and where is the file; --last N lists recent records
+  cookies status | grab | validate
+  wx status | install | start | stop | tasks
+  update                      check and update the built-in yt-dlp and deno (the very files used here)
+
+Add --help to any command for the full argument list, e.g. python\python.exe xxdown_cli.py download --help
+Note: arguments passed to "XX Down.exe" still go to the GUI, so agents should call python\python.exe xxdown_cli.py directly.
 
 [Notes]
 - The cookies.txt bundled in this directory is used as the default cookie file
@@ -119,5 +143,7 @@ Notes:
 - wxchannels_engine  WeChat Channels engine (auto-downloaded on first
   "Install/Update engine")
 - ytdlp_gui.py   source code of this app
+- xxdown_cli.py    agent CLI, JSON output, no GUI
+- xxdown_index.jsonl / xxdown_archive.txt   download records used to avoid re-downloading
 - launcher.c     launcher source (XX Down.exe is compiled from it)
 - build/         packaging tools (build_exe.py + Inno Setup script)

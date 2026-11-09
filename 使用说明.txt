@@ -6,22 +6,23 @@ XX Down —— 使用说明
 双击 "XX Down.exe" 即可使用，无需安装任何环境。版本 v1.5。
 
 【主要功能】
-1. 画质选择：视频画质（最佳 / 8K / 4K / 2K / 1080p / 720p / 480p / 360p / 仅音频）
-2. 音频质量：最佳 / 320K / 256K / 192K / 128K / 64K
-3. 下载目录：可自由更改保存位置，并自动记住上次的选择
-4. 更新 yt-dlp：一键检查并更新 yt-dlp 程序
-5. Cookies：一键"获取Cookie"，直连运行中的浏览器导出（支持 Chrome/Edge）
-6. 微信视频号：下载微信视频号（朋友圈式短视频）分享链接，复用开源引擎 wx_channels_download
-7. 抖音：无需 Cookie、无需打开浏览器。粘贴抖音链接（/video/、jingxuan?modal_id=、v.douyin.com 短链等任意格式）点"开始下载"，软件直接解析视频并列出全部可用画质，按主页画质下拉框的选择下载（"最佳"即最高画质）
-8. 新片场：粘贴 xinpianchang.com 视频链接即可下载（4K 画质需先在浏览器登录新片场）
-9. 小红书 / YouTube / B站 / X(Twitter) 等：由 yt-dlp 引擎解析下载
-10. 系统通知：下载完成 / 失败时弹出 Windows 通知（显示为 XX Down 本身）
+2. 画质选择：视频画质（最佳 / 8K / 4K / 2K / 1080p / 720p / 480p / 360p / 仅音频）
+3. 音频质量：最佳 / 320K / 256K / 192K / 128K / 64K
+4. 下载目录：可自由更改保存位置，并自动记住上次的选择
+5. 整包自动更新：检查更新会检测 GitHub Release，有新版时自动下载安装包并静默安装（依次尝试 GitHub 直连、ghfast.top、gh-proxy.com）
+6. 更新 yt-dlp：一键检查并更新 yt-dlp 程序
+7. Cookies：一键“获取Cookie”，直连运行中的浏览器导出（支持 Chrome/Edge）
+8. 微信视频号：下载微信视频号（朋友圈式短视频）分享链接，复用开源引擎 wx_channels_download
+9. 抖音：无需 Cookie；但需要 Chrome/Edge 开着远程调试（同「获取 Cookies」里的 autoConnect）。粘贴抖音链接点"开始下载"：以前有一条"无需浏览器"的 API 直连，抖音加了签名风控后已失效（HTTP 403）；现在自动回退浏览器拦截，能拿到标题和一路默认画质（没有全画质列表），选中哪个画质均下这一路
+10. 新片场：粘贴 xinpianchang.com 视频链接即可下载（4K 画质需先在浏览器登录新片场）
+11. 小红书 / YouTube / B站 / X(Twitter) 等：由 yt-dlp 引擎解析下载
+12. 系统通知：下载完成 / 失败时弹出 Windows 通知（显示为 XX Down 本身）
 
 【使用方法】
 1. 把要下载的视频链接粘贴到"视频链接"输入框（支持多个链接，每行一个）
 2. 选择画质、音频质量、容器格式和下载目录（均在"下载设置"页）
-3. 按需勾选"下载自动字幕 / 转 srt / 下载封面"
-4. 点击"开始下载"，下方日志会实时显示进度
+2. 按需勾选"下载自动字幕 / 转 srt / 下载封面"
+3. 点击"开始下载"，下方日志会实时显示进度
 
 【微信视频号下载】
 本软件内置微信视频号下载能力，复用开源项目 ltaoo/wx_channels_download（首次使用会自动下载引擎）。
@@ -66,22 +67,47 @@ XX Down —— 使用说明
 4. 保持浏览器运行
 
 之后每次使用：
-0. 快捷方式：直接在"下载"页点"获取 Cookie"按钮即可（按当前浏览器设置执行）
-1. 软件中选"从浏览器获取"→ 浏览器选 Chrome 或 Edge
-2. 点击"获取Cookie"
-3. 若浏览器弹出"允许远程调试？"，点允许
-4. 完成后自动保存为 cookies.txt 并启用
+1. 快捷方式：直接在"下载"页点"获取 Cookie"按钮即可（按当前浏览器设置执行）
+2. 软件中选"从浏览器获取"→ 浏览器选 Chrome 或 Edge
+3. 点击"获取Cookie"
+4. 若浏览器弹出"允许远程调试？"，点允许
+5. 完成后自动保存为 cookies.txt 并启用
 
 手动方法（备用）：
 1. 在浏览器安装扩展 "Get cookies.txt LOCALLY"（Chrome/Edge 商店可搜到）
 2. 打开并登录目标网站（如 YouTube）
 3. 点击扩展图标 → Export → 保存为 cookies.txt
-4. 在软件中选择"使用 cookies.txt 文件"→"浏览..."选中该文件
 
 注意：
 - 使用 cookies.txt 前请确认文件不是空的，且是 Netscape 格式（第一行是 # Netscape HTTP Cookie File）
 - Firefox 没有加密限制，可直接用"从浏览器获取"读取
 - 旧版 Chrome（低于 146）不支持 autoConnect，请升级 Chrome 或使用扩展导出
+
+【Agent 命令行接口（xxdown_cli.py）】
+本软件自带一个不带界面的命令行入口，供本地脚本 / AI agent 直接调用。它复用同一套下载引擎、同一份 yt-dlp.exe、同一份 cookies.txt 和同一份设置文件，因此不需要另外安装 yt-dlp，也不需要反复导出 Cookie。
+
+调用方式（在程序目录下执行）：
+  python\python.exe xxdown_cli.py <命令> [参数]
+  例：python\python.exe xxdown_cli.py download "https://v.douyin.com/xxxx/" --quality 1080p
+
+约定：
+1. 标准输出只有一个 JSON 文档，进度和日志走标准错误（加 --quiet 可完全静默）；不弹窗、不启动界面
+2. 退出码：0 成功（含命中下载记录直接返回本地路径）、1 有链接失败、2 参数错误、3 环境缺失、130 被中断
+3. 界面里设过的下载目录、画质、容器、Cookie 方式默认生效；可用 --dir / --quality / --container / --template / --cookie-file / --no-cookies 临时覆盖，--opt 键 值 可覆盖任意设置项
+4. 下载记录存放在 xxdown_index.jsonl（链接 → 本地文件）与 xxdown_archive.txt（按视频 ID 兜底）。已经下过的链接不会再次联网，直接返回本地路径；--force 强制重下，--no-archive 本次不读写记录
+
+命令清单：
+  tools                       输出命令清单与可选值（供 agent 自检）
+  doctor                      查环境：yt-dlp / deno / ffmpeg / 视频号引擎版本、cookies.txt 域名条目与过期情况、抖音 ttwid 缓存，并给出 problems
+  resolve 链接                只解析：标题、时长、可用画质列表，不下载
+  download 链接 [链接…]       下载，支持多个链接，自动分流普通站点 / 抖音 / 新片场 / 微信视频号
+  history --url 链接          查这条链接是否已下过并给出文件路径；--last N 列最近 N 条
+  cookies status | grab | validate     Cookie 状态 / 从运行中的 Chrome·Edge 导出 cookies.txt / 用真实链接校验
+  wx status | install | start | stop | tasks     微信视频号引擎控制
+  update                      检查并更新内置 yt-dlp 与 deno（更新的就是本地这份文件）
+
+每个命令都可以加 --help 查看完整参数，例如：python\python.exe xxdown_cli.py download --help
+注意：双击或运行 “XX Down.exe” 时带的参数只会传给界面，agent 请直接用上面的 python\python.exe xxdown_cli.py 形式调用。
 
 【注意事项】
 - 本目录下自带的 cookies.txt 会作为默认 Cookie 文件使用
@@ -98,5 +124,7 @@ XX Down —— 使用说明
 - dy_ttwid.json  抖音访问凭证缓存（自动生成，无需处理）
 - wxchannels_engine  微信视频号下载引擎（首次使用"安装/更新视频号引擎"时自动下载）
 - ytdlp_gui.py   本软件的源代码
+- xxdown_cli.py    命令行接口，供本地脚本 / agent 调用（见上文）
+- xxdown_index.jsonl · xxdown_archive.txt   下载记录（自动生成，用于避免重复下载）
 - launcher.c     启动器源码（XX Down.exe 由它编译而来）
 - build/         打包工具（build_exe.py + Inno Setup 脚本）

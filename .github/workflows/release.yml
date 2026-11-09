@@ -1,0 +1,116 @@
+name: Release XX Down
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: { python-version: "3.13.11" }
+
+      - name: Install LLVM MinGW + Inno Setup
+        shell: pwsh
+        run: |
+          winget install --id MartinStorsjo.LLVM-MinGW.UCRT --silent --accept-package-agreements --accept-source-agreements
+          choco install innosetup -y --no-progress
+
+      - name: Prepare vendor deps
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $v = "vendor"
+          New-Item -ItemType Directory -Force "$v", "$v\bin", "$v\pyside", "$v\site-packages" | Out-Null
+
+          # Python embeddable runtime
+          Invoke-WebRequest https://www.python.org/ftp/python/3.13.11/python-3.13.11-embed-amd64.zip -OutFile "$v\python-3.13.11-embed-amd64.zip"
+
+          # PySide6 + shiboken6 wheels
+          pip download PySide6-Essentials==6.11.2 shiboken6==6.11.2 --no-deps -d tmp_pyside
+          Get-ChildItem tmp_pyside/*.whl | ForEach-Object {
+            Expand-Archive $_.FullName -DestinationPath "$v\pyside" -Force
+          }
+
+          # pywin32 + win10toast + setuptools wheels
+          pip download pywin32==311 win10toast==0.9 setuptools==80.10.2 --no-deps -d tmp_sp
+          Get-ChildItem tmp_sp/*.whl | ForEach-Object {
+            Expand-Archive $_.FullName -DestinationPath "$v\site-packages" -Force
+          }
+
+          # yt-dlp / deno / ffmpeg
+          Invoke-WebRequest https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp.exe -OutFile "$v\bin\yt-dlp.exe"
+          Invoke-WebRequest https://github.com/denoland/deno/releases/download/v2.9.8/deno-x86_64-pc-windows-msvc.zip -OutFile "$v\deno.zip"
+          Expand-Archive "$v\deno.zip" -DestinationPath "$v\bin" -Force
+          Remove-Item "$v\deno.zip"
+          Invoke-WebRequest https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -OutFile "$v\ffmpeg.zip"
+          Expand-Archive "$v\ffmpeg.zip" -DestinationPath "$v\ffmpeg" -Force
+          Get-ChildItem "$v\ffmpeg" -Recurse -Filter ffmpeg.exe | Select-Object -First 1 | ForEach-Object { Copy-Item $_.FullName "$v\bin\ffmpeg.exe" -Force }
+          Get-ChildItem "$v\ffmpeg" -Recurse -Filter ffprobe.exe | Select-Object -First 1 | ForEach-Object { Copy-Item $_.FullName "$v\bin\ffprobe.exe" -Force }
+          Remove-Item "$v\ffmpeg.zip"
+          Remove-Item "$v\ffmpeg" -Recurse -Force
+
+      - name: Build runtime
+        shell: pwsh
+        run: python build\build_exe.py
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe" }
+          & $iscc build\installer.iss
+
+      - name: Smoke test bundled CLI
+        shell: pwsh
+        run: |
+          & .\.install\python\python.exe .install\xxdown_cli.py tools | ConvertFrom-Json | Out-Null
+
+      - name: Rename setup and make checksums
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path ytdlp_gui.py -Pattern 'APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          $src = "XX Down_安装包_v$ver.exe"
+          $dst = "XX-Down-v$ver-setup-win-x64.exe"
+          Move-Item $src $dst -Force
+          Get-FileHash $dst -Algorithm SHA256 | ForEach-Object { "$($_.Hash)  $dst" } | Set-Content sha256sums.txt -Encoding ascii
+
+      - name: Decide whether to publish
+        id: gate
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path ytdlp_gui.py -Pattern 'APP_VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          $tag = "v$ver"
+          $existing = git ls-remote --tags origin "refs/tags/$tag"
+          if ($existing) {
+            "publish=false" >> $env:GITHUB_OUTPUT
+          } else {
+            "publish=true" >> $env:GITHUB_OUTPUT
+          }
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' && steps.gate.outputs.publish == 'true'
+        with:
+          tag_name: ${{ steps.gate.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            XX-Down-v*-setup-win-x64.exe
+            sha256sums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

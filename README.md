@@ -10,9 +10,10 @@
 
 ## 功能特性
 
-- **多平台支持**：抖音（免登录、多画质）、新片场、微信视频号、小红书、YouTube、B站、X(Twitter) 等
+- **多平台支持**：抖音（免登录；API 被风控时走浏览器拦截，只有一路默认画质）、新片场、微信视频号、小红书、YouTube、B站、X(Twitter) 等
 - **画质选择**：最佳 / 8K / 4K / 2K / 1080p / 720p / 480p / 360p / 仅音频；音频质量 320K ~ 64K
 - **字幕与封面**：自动字幕下载（可转 srt）、封面图下载
+- **整包自动更新**：检测 GitHub Release 新版，自动下载安装包并静默安装（GitHub 直连 → ghfast.top → gh-proxy.com）
 - **一键更新 yt-dlp**：始终使用最新解析能力
 - **Cookies 一键获取**：直连运行中的 Chrome/Edge（官方 autoConnect）导出登录态
 - **微信视频号**：复用开源引擎 [ltaoo/wx_channels_download](https://github.com/ltaoo/wx_channels_download)，首次使用自动下载
@@ -32,7 +33,7 @@ XX Down.exe（C 启动器，MinGW 编译）
 - 为什么不用 PyInstaller：360 杀毒的启发式规则（Trojan/Python.ShellLoader.am）
   会误杀本应用的 PyInstaller 包；官方签名的 CPython 运行时 + 小 C 启动器的
   组合不触发误报
-- 抖音解析：直连抖音官方 Web API（无需登录、无需浏览器）
+- 抖音解析：先直连官方 Web API，失效（官方加签名后 403）时自动回退浏览器拦截，需 Chrome/Edge 开着远程调试
 - 新片场解析：真实浏览器打开视频页读取 `__NEXT_DATA__` + 会话 Cookie，
   再请求 CDN 直链（4K 需登录态）
 
@@ -42,6 +43,7 @@ XX Down.exe（C 启动器，MinGW 编译）
 XX-Down/
 ├── ytdlp_gui.py          主程序（PySide6 GUI + 下载调度）
 ├── launcher.c            C 启动器源码（构建时编译为 XX Down.exe）
+├── xxdown_cli.py         agent 命令行接口（复用同一套引擎，输出 JSON）
 ├── 使用说明.txt          用户手册（中文）
 ├── 使用说明_EN.txt       用户手册（英文）
 ├── docs/
@@ -77,9 +79,33 @@ XX-Down/
 
 ```powershell
 python build\build_exe.py        # 组装 XX Down.exe + python\ + .install\（含冒烟测试）
+```
+
+## 发布自动化
+
+改 ytdlp_gui.py 里的 APP_VERSION 后 push 到 main，GitHub Actions 会自动构建 Windows 安装包，并创建对应的 v<版本号> tag 和 Release。软件本体的整包自动更新也从同一个 Release 检测新版本。
+
+```powershell
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" build\installer.iss
 # 产物：XX Down_安装包_v1.5.exe
 ```
+
+## Agent 接口（xxdown_cli.py）
+
+不带界面的命令行入口，供本地脚本和 AI agent 直接调用。它复用主程序的引擎函数，因此和界面共享同一份 yt-dlp.exe、同一份 cookies.txt 和同一份设置文件：agent 不用另行下载 yt-dlp，也不用反复导出 Cookie。已经下过的链接直接返回本地文件路径，不再走网络；记录分两层，本地索引 xxdown_index.jsonl 和 yt-dlp 归档 xxdown_archive.txt。--force 可强制重下。打包时连同它一起进安装包。
+
+```
+python\python.exe xxdown_cli.py tools                 # 自描述：命令清单、退出码、取值范围
+python\python.exe xxdown_cli.py doctor                # 环境、版本、Cookie 状态与 problems
+python\python.exe xxdown_cli.py resolve <URL>         # 只解析标题和画质，不下载
+python\python.exe xxdown_cli.py download <URL> [<URL>...] --quality 1080p
+python\python.exe xxdown_cli.py history --url <URL>   # 查这条链接是否已下过
+python\python.exe xxdown_cli.py cookies status|grab|validate
+python\python.exe xxdown_cli.py wx status|install|start|stop|tasks
+python\python.exe xxdown_cli.py update                # 更新本地这份 yt-dlp / deno
+```
+
+契约：标准输出只有一个 JSON 文档，进度和日志走标准错误（--quiet 可完全静默），不弹窗、不启动界面。退出码：0 成功（含命中下载记录）、1 有链接失败、2 参数错误、3 环境缺失、130 中断。XX Down.exe 会把参数照旧交给界面，agent 请直接用上面的形式调用。
 
 ## 第三方依赖与致谢
 
